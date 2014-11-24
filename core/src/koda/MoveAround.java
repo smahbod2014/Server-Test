@@ -12,8 +12,8 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 
 public class MoveAround extends ApplicationAdapter {
 	
-	public static int WIDTH = 1280;
-	public static int HEIGHT = 720;
+	public static int WIDTH = 960;
+	public static int HEIGHT = 540;
 	public static Resources res;
 	public static FontFactory ff;
 	

@@ -11,7 +11,8 @@ public class PlayState extends State {
 	
 	public PlayState(GSM gsm) {
 		super(gsm);
-		// TODO Auto-generated constructor stub
+		players = new Array<Player>();
+		System.out.println("Entered play state");
 	}
 
 	@Override
@@ -22,6 +23,7 @@ public class PlayState extends State {
 
 	@Override
 	public void update(float dt) {
+		if (players == null) return;
 		for (Player p : players) {
 			p.update(dt);
 		}
@@ -29,6 +31,9 @@ public class PlayState extends State {
 
 	@Override
 	public void render(SpriteBatch sb) {
+		if (players == null) {
+			return;
+		}
 		if (players.get(0) != null) {
 			players.get(0).sr.setColor(1, 0, 0, 1);
 			players.get(0).render(sb);

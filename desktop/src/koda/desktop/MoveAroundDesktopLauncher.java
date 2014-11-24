@@ -9,6 +9,7 @@ public class MoveAroundDesktopLauncher {
 		LwjglApplicationConfiguration config = new LwjglApplicationConfiguration();
 		config.width = MoveAround.WIDTH;
 		config.height = MoveAround.HEIGHT;
+		config.y = 0;
 		new LwjglApplication(new MoveAround(), config);
 	}
 }
