@@ -9,7 +9,6 @@ public abstract class Entity {
 	public float y;
 	public boolean[] direction;
 	public float speed;
-	public ShapeRenderer sr;
 	
 	public abstract void update(float dt);
 	public abstract void render(SpriteBatch sb);

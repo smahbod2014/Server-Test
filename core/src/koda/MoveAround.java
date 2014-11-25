@@ -9,13 +9,15 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 
 public class MoveAround extends ApplicationAdapter {
 	
-	public static int WIDTH = 960;
-	public static int HEIGHT = 540;
+	public static int WIDTH = 720;
+	public static int HEIGHT = 480;
 	public static Resources res;
 	public static FontFactory ff;
+	public static ShapeRenderer sr;
 	
 	private SpriteBatch sb;
 	private GSM gsm;
@@ -23,6 +25,7 @@ public class MoveAround extends ApplicationAdapter {
 	@Override
 	public void create () {
 		sb = new SpriteBatch();
+		sr = new ShapeRenderer();
 		loadResources();
 		ff = new FontFactory(res.getTexture("font"));
 		gsm = new GSM();

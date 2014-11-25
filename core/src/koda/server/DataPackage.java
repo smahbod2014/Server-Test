@@ -4,8 +4,18 @@ import java.io.Serializable;
 
 public class DataPackage implements Serializable {
 
-	public int x = 0;
-	public int y = 0;
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = -6727066495302479750L;
+	
+	public float x = 0f;
+	public float y = 0f;
+	public int id = 0;
 	
 	public String username = "";
+	
+	public DataPackage(int id) {
+		this.id = id;
+	}
 }
