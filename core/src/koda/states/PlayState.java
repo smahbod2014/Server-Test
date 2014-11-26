@@ -12,8 +12,10 @@ import javax.swing.JOptionPane;
 import koda.MoveAround;
 import koda.entities.Player;
 import koda.handlers.C;
+import koda.server.ClientPackage;
 import koda.server.DataPackage;
 import koda.server.Server;
+import koda.server.ServerPackage;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input.Keys;
@@ -22,6 +24,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 
 public class PlayState extends State {
 
+	public static ServerPackage server_package = new ServerPackage();
 	public static Socket socket;
 	public static int port = 2406;
 	public static String ip = "";
@@ -47,9 +50,13 @@ public class PlayState extends State {
 					dp.y = player.y;
 					dp.username = player.username;
 					
+					server_package.dp = dp;
+					server_package.state = state;
+					
 					oos = new ObjectOutputStream(socket.getOutputStream());
-					oos.writeObject(state);
-					oos.writeObject(dp);
+					//oos.writeObject(state);
+					//oos.writeObject(dp);
+					oos.writeObject(server_package);
 					
 					if (state == Server.CLIENT_INITIATED_DISCONNECT) {
 						connected = false;
@@ -74,9 +81,11 @@ public class PlayState extends State {
 			while (connected) {
 				try {
 					ois = new ObjectInputStream(socket.getInputStream());
-					int receive_state = (Integer) ois.readObject();
+					//int receive_state = (Integer) ois.readObject();
 					
-					switch (receive_state) {
+					ClientPackage packet = (ClientPackage) ois.readObject();
+					
+					switch (packet.state) {
 					case Server.RUNNING:
 						//do nothing
 						break;
@@ -94,24 +103,24 @@ public class PlayState extends State {
 						break;
 					}
 					
-					ArrayList<DataPackage> list_data = null;
+					/*ArrayList<DataPackage> list_data = null;
 					synchronized (Server.lock) {
 						 list_data = (ArrayList<DataPackage>) ois.readObject();
 					}
 					
 					DataPackage new_user = (DataPackage) ois.readObject();
-					DataPackage former_user = (DataPackage) ois.readObject();
-					if (new_user != null) {
+					DataPackage former_user = (DataPackage) ois.readObject();*/
+					if (packet.new_user != null) {
 						//othersData.add(new_user);
-						otherPlayers.add(new Player(new_user.x, new_user.y, new_user.username, new_user.id));
+						otherPlayers.add(new Player(packet.new_user.x, packet.new_user.y, packet.new_user.username, packet.new_user.id));
 						//System.out.println("id " + id + " says: Added a new player (" + new_user.username + "). id = " + new_user.id);
 						//System.out.println("Now there are " + otherPlayers.size() + " players");
 					}
 					
-					if (former_user != null) {
+					if (packet.former_user != null) {
 						for (int i = 0; i < otherPlayers.size(); i++) {
-							if (former_user.id == otherPlayers.get(i).id) {
-								System.out.println("id " + id + " says: Removing player (" + former_user.username + "). id = " + former_user.id);
+							if (packet.former_user.id == otherPlayers.get(i).id) {
+								System.out.println("id " + id + " says: Removing player (" + packet.former_user.username + "). id = " + packet.former_user.id);
 								otherPlayers.remove(i);
 								break;
 							}
@@ -120,8 +129,8 @@ public class PlayState extends State {
 					
 					
 					synchronized (Server.lock) {
-						for (int i = 0; i < list_data.size(); i++) {
-							DataPackage dp = list_data.get(i);
+						for (int i = 0; i < packet.list_data.size(); i++) {
+							DataPackage dp = packet.list_data.get(i);
 							for (int j = 0; j < otherPlayers.size(); j++) {
 								if (dp.id == otherPlayers.get(j).id) {
 									otherPlayers.get(j).x = dp.x;
@@ -166,17 +175,30 @@ public class PlayState extends State {
 			
 			ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
 			String response = (String) ois.readObject();
-			this.id = (Integer) ois.readObject();
+			//this.id = (Integer) ois.readObject();
 			
-			response += " (ID: " + id + ")";
 			
-			ArrayList<DataPackage> list_data = null;
+			
+			//ArrayList<DataPackage> list_data = null;
 			
 			synchronized(Server.lock) {
-				list_data = (ArrayList<DataPackage>) ois.readObject();
+				/*while (!Server.package_sent) {
+					System.out.println("Client: package not sent! waiting...tick = " + Server.updateTick());
+					Server.lock.wait();
+				}*/
+				//Thread.sleep(500);
+				System.out.println("Client: package received!");
 				
-				for (int i = 0; i < list_data.size(); i++) {
-					DataPackage dp = list_data.get(i);
+				Server.package_sent = false;
+				
+				//list_data = (ArrayList<DataPackage>) ois.readObject();
+				ClientPackage packet = (ClientPackage) ois.readObject();
+				this.id = packet.id;
+				
+				response += " (ID: " + id + ")";
+				
+				for (int i = 0; i < packet.list_data.size(); i++) {
+					DataPackage dp = packet.list_data.get(i);
 					Player p = new Player(dp.x, dp.y, dp.username, dp.id);
 					otherPlayers.add(p);
 				}
@@ -200,24 +222,6 @@ public class PlayState extends State {
 		
 		
 	}
-	
-	/*private int getDisconnectedPlayer() {
-		for (int i = 0; i < otherPlayers.size(); i++) {
-			boolean found = false;
-			for (int j = 0; j < othersData.size(); j++) {
-				if (otherPlayers.get(i).id == othersData.get(j).id) {
-					found = true;
-					break;
-				}
-			}
-			
-			if (!found) {
-				return i;
-			}
-		}
-		
-		return 0;
-	}*/
 
 	@Override
 	public void handleInput() {

@@ -33,6 +33,8 @@ public class Server {
 	public static final Object lock = new Object();
 	public static final Object data_sent = new Object();
 	
+	public static volatile boolean package_sent = false;
+	
 	public static final int RUNNING = 0;
 	public static final int DISCONNECTED_BY_SERVER = 1;
 	public static final int CLIENT_INITIATED_DISCONNECT = 1;
@@ -41,12 +43,20 @@ public class Server {
 	public static int port = 2406;
 	public static String ip = "";
 	public static int count = 0;
+	public static int tick = 0;
+	
+	public static synchronized int updateTick() {
+		int t = tick;
+		tick++;
+		return t;
+	}
 	
 	public static ServerSocket server;
 	public static ArrayList<ClientData> client_data = new ArrayList<ClientData>();
+	public static ClientPackage client_package = new ClientPackage();
 	/*public static ArrayList<Socket> list_sockets = new ArrayList<Socket>();
-	public static ArrayList<Integer> list_client_states = new ArrayList<Integer>();
-	public static ArrayList<DataPackage> list_data = new ArrayList<DataPackage>();*/
+	public static ArrayList<Integer> list_client_states = new ArrayList<Integer>();*/
+	//public static ArrayList<DataPackage> list_data = new ArrayList<DataPackage>();
 	
 	public static DataPackage new_user = null;
 	public static DataPackage former_user = null;
@@ -70,6 +80,8 @@ public class Server {
 					String username = (String) ois.readObject();
 					dp.username = username;
 					
+					String model = username + " - " + socket.getInetAddress().getHostAddress() + " - " + socket.getInetAddress().getHostName();
+					
 					ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
 					if (dp.id != -1) {
 						oos.writeObject("Welcome to the server!");
@@ -85,12 +97,25 @@ public class Server {
 					//oos.writeObject(dp.id);
 					//oos.writeObject(list_data);
 					
-					list_clients_model.addElement(username + " - " + socket.getInetAddress().getHostAddress() + " - " + socket.getInetAddress().getHostName());
 					
-					list_sockets.add(socket);
+					
+					//list_sockets.add(socket);
 					synchronized (lock) {
-						list_data.add(dp);
+						//Thread.sleep(500);
+						client_package.list_data.add(dp);
+						client_package.state = state;
+						client_package.id = dp.id;
+						client_data.add(new ClientData(dp, state, model, socket));
+						list_clients_model.addElement(model);
+						oos.writeObject(client_package);
+						package_sent = true;
+						System.out.println("Server: package sent!");
+						//while (package_sent) {
+							//lock.notify();
+							System.out.println("Server: notified client. tick = " + updateTick());
+						//}
 					}
+					
 					
 					
 				} catch (Exception e) {
@@ -114,25 +139,26 @@ public class Server {
 			ObjectOutputStream oos;
 			
 			while (true) {
-				for (int i = 0; i < list_sockets.size(); i++) {
+				for (int i = 0; i < client_data.size(); i++) {
 					try {
-						//System.out.println("Starting send thread");
-						oos = new ObjectOutputStream(list_sockets.get(i).getOutputStream());
-						int client_state = list_client_states.get(i);
-						oos.writeObject(client_state);
+						ClientData cd = client_data.get(i);
 						
-						//oos = new ObjectOutputStream(list_sockets.get(i).getOutputStream());
+						oos = new ObjectOutputStream(cd.socket.getOutputStream());
+						client_package.state = cd.state;
+						client_package.new_user = new_user;
+						client_package.former_user = former_user;
 						
 						synchronized (lock) {
-							oos.writeObject(list_data);
+							//oos.writeObject(client_state);
+							oos.writeObject(client_package);
+							//oos.writeObject(new_user);
+							//oos.writeObject(former_user);
+							new_user = null;
+							former_user = null;
 						}
 						
-						oos.writeObject(new_user);
-						oos.writeObject(former_user);
-						new_user = null;
-						former_user = null;
 						
-						switch (client_state) {
+						switch (client_package.state) {
 						case RUNNING:
 							//do nothing
 							break;
@@ -170,22 +196,25 @@ public class Server {
 			ObjectInputStream ois;
 			
 			while (true) {
-				for (int i = 0; i < list_sockets.size(); i++) {
+				for (int i = 0; i < client_data.size(); i++) {
 					try {
-						ois = new ObjectInputStream(list_sockets.get(i).getInputStream());
-						int receive_state = (Integer) ois.readObject();
+						ClientData cd = client_data.get(i);
+						ois = new ObjectInputStream(cd.socket.getInputStream());
+						//int receive_state = (Integer) ois.readObject();
+						ServerPackage packet = (ServerPackage) ois.readObject();
 						
 						//ois = new ObjectInputStream(list_sockets.get(i).getInputStream());
-						DataPackage dp = (DataPackage) ois.readObject();
+						//DataPackage dp = (DataPackage) ois.readObject();
 						
 						synchronized(lock) {
-							list_data.set(i, dp);
+							client_package.list_data.set(i, packet.dp);
 						}
 						
-						if (receive_state == CLIENT_INITIATED_DISCONNECT) {
-							//System.out.println("Client initiated disconnect!");
+						switch (packet.state) {
+						case CLIENT_INITIATED_DISCONNECT:
 							disconnectClient(i);
 							i--;
+							break;
 						}
 						
 					} catch (Exception e) {
@@ -208,14 +237,21 @@ public class Server {
 	
 	public static void disconnectClient(int index) {
 		list_clients_model.removeElementAt(index);
-		list_client_states.remove(index);
-		DataPackage dp = null;
+		
+		synchronized (lock) {
+			DataPackage dp = client_package.list_data.get(index);
+			client_data.remove(index);
+			id_manager.releaseId(dp.id);
+			former_user = dp;
+		}
+		
+		
+		/*DataPackage dp = null;
 		synchronized (lock) {
 			dp = list_data.remove(index);
 		}
-		list_sockets.remove(index);
-		id_manager.releaseId(dp.id);
-		former_user = dp;
+		list_sockets.remove(index);*/
+		
 		//System.out.println("Server releasing id " + dp.id);
 	}
 	
@@ -225,8 +261,8 @@ public class Server {
 	public static JPanel panel3;
 	public static JPanel content;
 	public static JButton btn_disconnect;
-	public static JList list_clients;
-	public static DefaultListModel list_clients_model;
+	public static JList<String> list_clients;
+	public static DefaultListModel<String> list_clients_model;
 	
 	public static void main(String[] args) throws Exception {
 		//UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
@@ -251,7 +287,9 @@ public class Server {
 				
 				if (selected != -1) {
 					try {
-						list_client_states.set(selected, DISCONNECTED_BY_SERVER);
+						ClientData cd = client_data.get(selected);
+						cd.state = DISCONNECTED_BY_SERVER;
+						//list_client_states.set(selected, DISCONNECTED_BY_SERVER);
 					} catch (Exception ex) {
 						JOptionPane.showMessageDialog(null, "Error: " + ex.getMessage(), "Alert", JOptionPane.ERROR_MESSAGE);
 					}
@@ -260,8 +298,8 @@ public class Server {
 			}
 		});
 		
-		list_clients_model = new DefaultListModel();
-		list_clients = new JList(list_clients_model);
+		list_clients_model = new DefaultListModel<String>();
+		list_clients = new JList<String>(list_clients_model);
 		list_clients.addListSelectionListener(new ListSelectionListener() {
 			
 			@Override
@@ -283,10 +321,12 @@ public class Server {
 			
 			@Override
 			public void windowClosing(WindowEvent arg0) {
-				while (list_sockets.size() != 0) {
-					for (int i = 0; i < list_client_states.size(); i++) {
+				while (client_data.size() != 0) {
+					for (int i = 0; i < client_data.size(); i++) {
 						try {
-							list_client_states.set(i, SERVER_SHUTTING_DOWN);
+							ClientData cd = client_data.get(i);
+							cd.state = SERVER_SHUTTING_DOWN;
+							//list_client_states.set(i, SERVER_SHUTTING_DOWN);
 						} catch (Exception e) {}
 						
 					}
