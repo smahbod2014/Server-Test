@@ -43,9 +43,10 @@ public class Server {
 	public static int count = 0;
 	
 	public static ServerSocket server;
-	public static ArrayList<Socket> list_sockets = new ArrayList<Socket>();
+	public static ArrayList<ClientData> client_data = new ArrayList<ClientData>();
+	/*public static ArrayList<Socket> list_sockets = new ArrayList<Socket>();
 	public static ArrayList<Integer> list_client_states = new ArrayList<Integer>();
-	public static ArrayList<DataPackage> list_data = new ArrayList<DataPackage>();
+	public static ArrayList<DataPackage> list_data = new ArrayList<DataPackage>();*/
 	
 	public static DataPackage new_user = null;
 	public static DataPackage former_user = null;
@@ -62,6 +63,7 @@ public class Server {
 			while (true) {
 				try {
 					Socket socket = server.accept();
+					int state = Server.RUNNING;
 					DataPackage dp = new DataPackage(id_manager.allocateId());
 					
 					ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
@@ -71,15 +73,17 @@ public class Server {
 					ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
 					if (dp.id != -1) {
 						oos.writeObject("Welcome to the server!");
-						list_client_states.add(RUNNING);
+						//list_client_states.add(RUNNING);
+						state = Server.RUNNING;
 						new_user = dp;
 					} else {
 						oos.writeObject("The server is at capacity!");
-						list_client_states.add(DISCONNECTED_BY_SERVER);
+						//list_client_states.add(DISCONNECTED_BY_SERVER);
+						state = Server.DISCONNECTED_BY_SERVER;
 					}
 					
-					oos.writeObject(dp.id);
-					oos.writeObject(list_data);
+					//oos.writeObject(dp.id);
+					//oos.writeObject(list_data);
 					
 					list_clients_model.addElement(username + " - " + socket.getInetAddress().getHostAddress() + " - " + socket.getInetAddress().getHostName());
 					

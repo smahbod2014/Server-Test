@@ -104,8 +104,8 @@ public class PlayState extends State {
 					if (new_user != null) {
 						//othersData.add(new_user);
 						otherPlayers.add(new Player(new_user.x, new_user.y, new_user.username, new_user.id));
-						System.out.println("id " + id + " says: Added a new player (" + new_user.username + "). id = " + new_user.id);
-						System.out.println("Now there are " + otherPlayers.size() + " players");
+						//System.out.println("id " + id + " says: Added a new player (" + new_user.username + "). id = " + new_user.id);
+						//System.out.println("Now there are " + otherPlayers.size() + " players");
 					}
 					
 					if (former_user != null) {
