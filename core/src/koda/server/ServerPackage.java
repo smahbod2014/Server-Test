@@ -7,8 +7,9 @@ public class ServerPackage implements Serializable {
 	/**
 	 * 
 	 */
-	private static final long serialVersionUID = -5710647041305138104L;
-	public DataPackage dp;
+	private static final long serialVersionUID = 1L;
 	public int state;
 	public int id;
+	public DataPackage dp;
+	
 }

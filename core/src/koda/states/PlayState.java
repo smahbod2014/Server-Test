@@ -26,6 +26,8 @@ public class PlayState extends State {
 
 	public static ServerPackage server_package = new ServerPackage();
 	public static Socket socket;
+	public static ObjectOutputStream oos;
+	public static ObjectInputStream ois;
 	public static int port = 2406;
 	public static String ip = "";
 	
@@ -41,7 +43,6 @@ public class PlayState extends State {
 
 		@Override
 		public void run() {
-			ObjectOutputStream oos;
 			
 			while (socket != null && connected) {
 				try {
@@ -54,11 +55,8 @@ public class PlayState extends State {
 					server_package.state = state;
 					server_package.id = id;
 					
-					oos = new ObjectOutputStream(socket.getOutputStream());
-					//oos.writeObject(state);
-					//oos.writeObject(dp);
 					oos.writeObject(server_package);
-					oos.reset();
+					//oos.flush();
 					
 					if (state == Server.CLIENT_INITIATED_DISCONNECT) {
 						connected = false;
@@ -78,11 +76,9 @@ public class PlayState extends State {
 
 		@Override
 		public void run() {
-			ObjectInputStream ois;
 			
 			while (connected) {
 				try {
-					ois = new ObjectInputStream(socket.getInputStream());
 					//int receive_state = (Integer) ois.readObject();
 					
 					ClientPackage packet = (ClientPackage) ois.readObject();
@@ -177,27 +173,19 @@ public class PlayState extends State {
 			String username = System.getProperty("user.name");
 			username = (String) JOptionPane.showInputDialog(null, "Username: ", "Info", JOptionPane.INFORMATION_MESSAGE, null, null, username);
 		
-			ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
+			oos = new ObjectOutputStream(socket.getOutputStream());
 			oos.writeObject(username);
 			
-			ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
+			ois = new ObjectInputStream(socket.getInputStream());
 			String response = (String) ois.readObject();
-			//this.id = (Integer) ois.readObject();
+
+			System.out.println("Got the response! " + response);
 			
 			
-			
-			//ArrayList<DataPackage> list_data = null;
-			
-			//ois = new ObjectInputStream(socket.getInputStream());
-			
-			/*ClientPackage packet = (ClientPackage) ois.readObject();
-			this.id = packet.id;
-			
-			*/
-			
-			//String what = (String) ois.readObject();
 			ClientPackage packet = (ClientPackage) ois.readObject();
 			this.id = packet.id;
+			
+			System.out.println("Got the packet! id is " + id);
 			
 			response += " (ID: " + id + ")";
 			
@@ -211,7 +199,7 @@ public class PlayState extends State {
 			}
 			
 			
-			JOptionPane.showMessageDialog(null, response, "Message", JOptionPane.INFORMATION_MESSAGE);
+			
 			
 			player = new Player(MoveAround.WIDTH / 2, MoveAround.HEIGHT / 2, username, id);
 		
@@ -220,6 +208,9 @@ public class PlayState extends State {
 			
 			new Thread(send).start();
 			new Thread(receive).start();
+			
+			
+			JOptionPane.showMessageDialog(null, response, "Message", JOptionPane.INFORMATION_MESSAGE);
 		} catch (Exception e) {
 			JOptionPane.showMessageDialog(null, "Error: " + e.getMessage(), "Alert", JOptionPane.ERROR_MESSAGE);
 			e.printStackTrace();

@@ -8,13 +8,17 @@ public class ClientPackage implements Serializable {
 	/**
 	 * 
 	 */
-	private static final long serialVersionUID = -9060263190949024623L;
+	private static final long serialVersionUID = 1L;
 	//public ArrayList<DataPackage> list_data;
-	public DataPackage[] list_data;
 	public int state;
 	public int id;
 	public DataPackage new_user;
 	public DataPackage former_user;
+	public DataPackage[] list_data;
+	
+	
+	public ClientPackage() {}
+	
 	
 	public ClientPackage(final int capacity) {
 		//list_data = new ArrayList<DataPackage>();
@@ -22,6 +26,6 @@ public class ClientPackage implements Serializable {
 		state = Server.RUNNING;
 		new_user = null;
 		former_user = null;
-		this.id = -1;
+		this.id = 0;
 	}
 }
