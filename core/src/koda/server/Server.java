@@ -1,6 +1,7 @@
 package koda.server;
 
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -23,6 +24,8 @@ import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 
@@ -35,6 +38,8 @@ public class Server {
 	
 	public static volatile boolean package_sent = false;
 	
+	public static final int MAX_CAPACITY = 5;
+	
 	public static final int RUNNING = 0;
 	public static final int DISCONNECTED_BY_SERVER = 1;
 	public static final int CLIENT_INITIATED_DISCONNECT = 1;
@@ -44,6 +49,8 @@ public class Server {
 	public static String ip = "";
 	public static int count = 0;
 	public static int tick = 0;
+	public static int next_available_index = 0;
+	public static int num_clients_connected = 0;
 	
 	public static synchronized int updateTick() {
 		int t = tick;
@@ -52,8 +59,9 @@ public class Server {
 	}
 	
 	public static ServerSocket server;
-	public static ArrayList<ClientData> client_data = new ArrayList<ClientData>();
-	public static ClientPackage client_package = new ClientPackage();
+	//public static ArrayList<ClientData> client_data = new ArrayList<ClientData>();
+	public static ClientData[] client_data = new ClientData[MAX_CAPACITY];
+	public static ClientPackage client_package = new ClientPackage(MAX_CAPACITY);
 	/*public static ArrayList<Socket> list_sockets = new ArrayList<Socket>();
 	public static ArrayList<Integer> list_client_states = new ArrayList<Integer>();*/
 	//public static ArrayList<DataPackage> list_data = new ArrayList<DataPackage>();
@@ -61,7 +69,7 @@ public class Server {
 	public static DataPackage new_user = null;
 	public static DataPackage former_user = null;
 	
-	public static IDManager id_manager = new IDManager(5);
+	public static IDManager id_manager = new IDManager(MAX_CAPACITY);
 	
 	private static Runnable accept = new Runnable() {
 
@@ -73,50 +81,52 @@ public class Server {
 			while (true) {
 				try {
 					Socket socket = server.accept();
+					
+					ClientData cd = new ClientData();
+					int id = id_manager.allocateId();
 					int state = Server.RUNNING;
-					DataPackage dp = new DataPackage(id_manager.allocateId());
+					DataPackage dp = new DataPackage();
+					
+					//initialize this
+					cd.id = id;
+					cd.socket = socket;
+					cd.state = state;
+					cd.data_package = dp;
+					dp.id = id;
+					
 					
 					ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
 					String username = (String) ois.readObject();
 					dp.username = username;
 					
-					String model = username + " - " + socket.getInetAddress().getHostAddress() + " - " + socket.getInetAddress().getHostName();
+					String model = "ID " + id + ": " + username + " - " + socket.getInetAddress().getHostAddress() + " - " + socket.getInetAddress().getHostName();
+					
+					cd.model = model;
+					
+					client_data[id] = cd;
 					
 					ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-					if (dp.id != -1) {
+					if (id != 0) {
 						oos.writeObject("Welcome to the server!");
 						//list_client_states.add(RUNNING);
 						state = Server.RUNNING;
 						new_user = dp;
+						num_clients_connected++;
 					} else {
 						oos.writeObject("The server is at capacity!");
 						//list_client_states.add(DISCONNECTED_BY_SERVER);
 						state = Server.DISCONNECTED_BY_SERVER;
 					}
 					
-					//oos.writeObject(dp.id);
-					//oos.writeObject(list_data);
+					client_package.state = state;
+					client_package.id = id;
+					list_clients_model.addElement(model);
+					//oos = new ObjectOutputStream(socket.getOutputStream());
+					//oos.writeObject(client_package);
+					oos.writeObject(client_package);
 					
-					
-					
-					//list_sockets.add(socket);
-					synchronized (lock) {
-						//Thread.sleep(500);
-						client_package.list_data.add(dp);
-						client_package.state = state;
-						client_package.id = dp.id;
-						client_data.add(new ClientData(dp, state, model, socket));
-						list_clients_model.addElement(model);
-						oos.writeObject(client_package);
-						package_sent = true;
-						System.out.println("Server: package sent!");
-						//while (package_sent) {
-							//lock.notify();
-							System.out.println("Server: notified client. tick = " + updateTick());
-						//}
-					}
-					
-					
+					client_package.list_data[id] = dp;
+					//client_data[next_available_index] = new ClientData(dp, state, model, socket);
 					
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -139,23 +149,24 @@ public class Server {
 			ObjectOutputStream oos;
 			
 			while (true) {
-				for (int i = 0; i < client_data.size(); i++) {
+				for (int i = 0; i < MAX_CAPACITY; i++) {
+					if (client_data[i] == null) {
+						continue;
+					}
+					
 					try {
-						ClientData cd = client_data.get(i);
+						ClientData cd = client_data[i];
 						
 						oos = new ObjectOutputStream(cd.socket.getOutputStream());
 						client_package.state = cd.state;
 						client_package.new_user = new_user;
 						client_package.former_user = former_user;
 						
-						synchronized (lock) {
-							//oos.writeObject(client_state);
-							oos.writeObject(client_package);
-							//oos.writeObject(new_user);
-							//oos.writeObject(former_user);
-							new_user = null;
-							former_user = null;
-						}
+						
+						
+						
+						oos.writeObject(client_package);
+						oos.reset();
 						
 						
 						switch (client_package.state) {
@@ -165,18 +176,21 @@ public class Server {
 						case DISCONNECTED_BY_SERVER:
 							//System.out.println("Disconnecting client: " + client_state);
 							disconnectClient(i);
-							i--;
+							//i--;
 							break;
 						case SERVER_SHUTTING_DOWN:
 							//System.out.println("Disconnecting client: " + client_state);
 							disconnectClient(i);
-							i--;
+							//i--;
 							break;
 						}
 					} catch (IOException e) {
 						//e.printStackTrace();
 					}
 				}
+				
+				//new_user = null;
+				//former_user = null;
 				
 				
 				try {
@@ -196,9 +210,13 @@ public class Server {
 			ObjectInputStream ois;
 			
 			while (true) {
-				for (int i = 0; i < client_data.size(); i++) {
+				for (int i = 0; i < MAX_CAPACITY; i++) {
+					if (client_data[i] == null) {
+						continue;
+					}
+					
 					try {
-						ClientData cd = client_data.get(i);
+						ClientData cd = client_data[i];
 						ois = new ObjectInputStream(cd.socket.getInputStream());
 						//int receive_state = (Integer) ois.readObject();
 						ServerPackage packet = (ServerPackage) ois.readObject();
@@ -206,14 +224,14 @@ public class Server {
 						//ois = new ObjectInputStream(list_sockets.get(i).getInputStream());
 						//DataPackage dp = (DataPackage) ois.readObject();
 						
-						synchronized(lock) {
-							client_package.list_data.set(i, packet.dp);
-						}
+						//synchronized(lock) {
+						client_package.list_data[i] = packet.dp;
+						//}
 						
 						switch (packet.state) {
 						case CLIENT_INITIATED_DISCONNECT:
 							disconnectClient(i);
-							i--;
+							//i--;
 							break;
 						}
 						
@@ -221,7 +239,7 @@ public class Server {
 						//client didn't notify server about disconnecting
 						e.printStackTrace();
 						disconnectClient(i);
-						i--;
+						//i--;
 					}
 				}
 				
@@ -235,24 +253,22 @@ public class Server {
 		}
 	};
 	
+	public static void getUpdatedIndex() {
+		for (int i = 0; i < MAX_CAPACITY; i++) {
+			if (client_data[i] == null) {
+				next_available_index = i;
+				return;
+			}
+		}
+	}
+	
 	public static void disconnectClient(int index) {
 		list_clients_model.removeElementAt(index);
-		
-		synchronized (lock) {
-			DataPackage dp = client_package.list_data.get(index);
-			client_data.remove(index);
-			id_manager.releaseId(dp.id);
-			former_user = dp;
-		}
-		
-		
-		/*DataPackage dp = null;
-		synchronized (lock) {
-			dp = list_data.remove(index);
-		}
-		list_sockets.remove(index);*/
-		
-		//System.out.println("Server releasing id " + dp.id);
+		former_user = client_package.list_data[index];
+		client_package.list_data[index] = null;
+		client_data[index] = null;
+		id_manager.releaseId(index);
+		num_clients_connected--;
 	}
 	
 	public static JFrame frame;
@@ -262,6 +278,7 @@ public class Server {
 	public static JPanel content;
 	public static JButton btn_disconnect;
 	public static JList<String> list_clients;
+	public static JList<String> log_statements;
 	public static DefaultListModel<String> list_clients_model;
 	
 	public static void main(String[] args) throws Exception {
@@ -287,13 +304,14 @@ public class Server {
 				
 				if (selected != -1) {
 					try {
-						ClientData cd = client_data.get(selected);
-						cd.state = DISCONNECTED_BY_SERVER;
-						//list_client_states.set(selected, DISCONNECTED_BY_SERVER);
+						String string_id = list_clients.getSelectedValue();
+						string_id = string_id.substring(string_id.indexOf(" ") + 1, string_id.indexOf(":"));
+						int id = Integer.parseInt(string_id);
+						
+						client_data[id].state = Server.DISCONNECTED_BY_SERVER;
 					} catch (Exception ex) {
 						JOptionPane.showMessageDialog(null, "Error: " + ex.getMessage(), "Alert", JOptionPane.ERROR_MESSAGE);
-					}
-					
+					}				
 				}
 			}
 		});
@@ -321,14 +339,17 @@ public class Server {
 			
 			@Override
 			public void windowClosing(WindowEvent arg0) {
-				while (client_data.size() != 0) {
-					for (int i = 0; i < client_data.size(); i++) {
+				while (num_clients_connected > 0) {
+					for (int i = 0; i < MAX_CAPACITY; i++) {
+						if (client_data[i] == null) {
+							continue;
+						}
+						
 						try {
-							ClientData cd = client_data.get(i);
+							ClientData cd = client_data[i];
 							cd.state = SERVER_SHUTTING_DOWN;
 							//list_client_states.set(i, SERVER_SHUTTING_DOWN);
 						} catch (Exception e) {}
-						
 					}
 				}
 				System.exit(0);
@@ -350,10 +371,22 @@ public class Server {
 		panel3.add(panel1, BorderLayout.NORTH);
 		panel3.add(new JScrollPane(list_clients), BorderLayout.CENTER);
 		panel3.add(panel2, BorderLayout.SOUTH);
+		//panel3.setMaximumSize(new Dimension(350, 400));
+		
+		log_statements = new JList<String>();
+		JPanel panel4 = new JPanel();
+		panel4.setLayout(new BorderLayout(1, 1));
+		panel4.add(new JLabel("Log"), BorderLayout.NORTH);
+		panel4.add(new JScrollPane(log_statements), BorderLayout.CENTER);
+		//panel4.add(panel3, BorderLayout.WEST);
+		panel4.setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 0));
+		panel4.setMinimumSize(new Dimension(700 - 350, 400));
+		
 		
 		content = new JPanel();
-		content.setLayout(new GridLayout(1, 1, 1, 1));
+		content.setLayout(new GridLayout(1, 2, 1, 1));
 		content.add(panel3);
+		//content.add(panel4);
 		content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 		
 		frame.setContentPane(content);

@@ -5,14 +5,20 @@ import java.util.ArrayList;
 
 public class ClientPackage implements Serializable {
 
-	public ArrayList<DataPackage> list_data;
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = -9060263190949024623L;
+	//public ArrayList<DataPackage> list_data;
+	public DataPackage[] list_data;
 	public int state;
 	public int id;
 	public DataPackage new_user;
 	public DataPackage former_user;
 	
-	public ClientPackage() {
-		list_data = new ArrayList<DataPackage>();
+	public ClientPackage(final int capacity) {
+		//list_data = new ArrayList<DataPackage>();
+		list_data = new DataPackage[capacity];
 		state = Server.RUNNING;
 		new_user = null;
 		former_user = null;

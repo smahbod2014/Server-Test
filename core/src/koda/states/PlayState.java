@@ -45,18 +45,20 @@ public class PlayState extends State {
 			
 			while (socket != null && connected) {
 				try {
-					DataPackage dp = new DataPackage(id);
+					DataPackage dp = new DataPackage();
 					dp.x = player.x;
 					dp.y = player.y;
 					dp.username = player.username;
 					
 					server_package.dp = dp;
 					server_package.state = state;
+					server_package.id = id;
 					
 					oos = new ObjectOutputStream(socket.getOutputStream());
 					//oos.writeObject(state);
 					//oos.writeObject(dp);
 					oos.writeObject(server_package);
+					oos.reset();
 					
 					if (state == Server.CLIENT_INITIATED_DISCONNECT) {
 						connected = false;
@@ -85,6 +87,7 @@ public class PlayState extends State {
 					
 					ClientPackage packet = (ClientPackage) ois.readObject();
 					
+					
 					switch (packet.state) {
 					case Server.RUNNING:
 						//do nothing
@@ -103,39 +106,43 @@ public class PlayState extends State {
 						break;
 					}
 					
-					/*ArrayList<DataPackage> list_data = null;
-					synchronized (Server.lock) {
-						 list_data = (ArrayList<DataPackage>) ois.readObject();
-					}
-					
-					DataPackage new_user = (DataPackage) ois.readObject();
-					DataPackage former_user = (DataPackage) ois.readObject();*/
 					if (packet.new_user != null) {
 						//othersData.add(new_user);
-						otherPlayers.add(new Player(packet.new_user.x, packet.new_user.y, packet.new_user.username, packet.new_user.id));
+						boolean add_user = true;
+						for (int i = 0; i < otherPlayers.size(); i++) {
+							if (packet.id == otherPlayers.get(i).id) {
+								add_user = false;
+								break;
+							}
+						}
+						if (add_user)
+							otherPlayers.add(new Player(packet.new_user.x, packet.new_user.y, packet.new_user.username, packet.id));
 						//System.out.println("id " + id + " says: Added a new player (" + new_user.username + "). id = " + new_user.id);
 						//System.out.println("Now there are " + otherPlayers.size() + " players");
 					}
 					
 					if (packet.former_user != null) {
 						for (int i = 0; i < otherPlayers.size(); i++) {
-							if (packet.former_user.id == otherPlayers.get(i).id) {
-								System.out.println("id " + id + " says: Removing player (" + packet.former_user.username + "). id = " + packet.former_user.id);
+							if (packet.id == otherPlayers.get(i).id) {
+								System.out.println("id " + id + " says: Removing player (" + packet.former_user.username + "). id = " + packet.id);
 								otherPlayers.remove(i);
+								i--;
 								break;
 							}
 						}
 					}
 					
 					
-					synchronized (Server.lock) {
-						for (int i = 0; i < packet.list_data.size(); i++) {
-							DataPackage dp = packet.list_data.get(i);
-							for (int j = 0; j < otherPlayers.size(); j++) {
-								if (dp.id == otherPlayers.get(j).id) {
-									otherPlayers.get(j).x = dp.x;
-									otherPlayers.get(j).y = dp.y;
-								}
+					for (int i = 0; i < packet.list_data.length; i++) {
+						DataPackage dp = packet.list_data[i];
+						if (dp == null) {
+							continue;
+						}
+						
+						for (int j = 0; j < otherPlayers.size(); j++) {
+							if (packet.id == otherPlayers.get(j).id) {
+								otherPlayers.get(j).x = dp.x;
+								otherPlayers.get(j).y = dp.y;
 							}
 						}
 					}
@@ -181,27 +188,26 @@ public class PlayState extends State {
 			
 			//ArrayList<DataPackage> list_data = null;
 			
-			synchronized(Server.lock) {
-				/*while (!Server.package_sent) {
-					System.out.println("Client: package not sent! waiting...tick = " + Server.updateTick());
-					Server.lock.wait();
-				}*/
-				//Thread.sleep(500);
-				System.out.println("Client: package received!");
-				
-				Server.package_sent = false;
-				
-				//list_data = (ArrayList<DataPackage>) ois.readObject();
-				ClientPackage packet = (ClientPackage) ois.readObject();
-				this.id = packet.id;
-				
-				response += " (ID: " + id + ")";
-				
-				for (int i = 0; i < packet.list_data.size(); i++) {
-					DataPackage dp = packet.list_data.get(i);
-					Player p = new Player(dp.x, dp.y, dp.username, dp.id);
-					otherPlayers.add(p);
+			//ois = new ObjectInputStream(socket.getInputStream());
+			
+			/*ClientPackage packet = (ClientPackage) ois.readObject();
+			this.id = packet.id;
+			
+			*/
+			
+			//String what = (String) ois.readObject();
+			ClientPackage packet = (ClientPackage) ois.readObject();
+			this.id = packet.id;
+			
+			response += " (ID: " + id + ")";
+			
+			for (int i = 0; i < packet.list_data.length; i++) {
+				DataPackage dp = packet.list_data[i];
+				if (dp == null) {
+					continue;
 				}
+				Player p = new Player(dp.x, dp.y, dp.username, dp.id);
+				otherPlayers.add(p);
 			}
 			
 			
@@ -216,7 +222,7 @@ public class PlayState extends State {
 			new Thread(receive).start();
 		} catch (Exception e) {
 			JOptionPane.showMessageDialog(null, "Error: " + e.getMessage(), "Alert", JOptionPane.ERROR_MESSAGE);
-			//e.printStackTrace();
+			e.printStackTrace();
 			Gdx.app.exit();
 		}
 		
@@ -269,18 +275,21 @@ public class PlayState extends State {
 			}
 		}
 		
-		player.update(dt);
+		if (player != null)
+			player.update(dt);
 	}
 
 	@Override
 	public void render(SpriteBatch sb) {
-		player.render(sb, new Color(1, 0, 0, 1));
-		
 		for (int i = 0; i < otherPlayers.size(); i++) {
 			Player p = otherPlayers.get(i);
 			if (player.id != p.id) {
 				p.render(sb, new Color(1, 1, 0, 1));
 			}
 		}
+		
+		if (player != null)
+			player.render(sb, new Color(1, 0, 0, 1));
+		
 	}
 }

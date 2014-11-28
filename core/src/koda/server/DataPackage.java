@@ -11,11 +11,8 @@ public class DataPackage implements Serializable {
 	
 	public float x = 0f;
 	public float y = 0f;
-	public int id = 0;
 	
 	public String username = "";
 	
-	public DataPackage(int id) {
-		this.id = id;
-	}
+	public int id;
 }
