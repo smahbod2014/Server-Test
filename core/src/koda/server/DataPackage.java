@@ -18,4 +18,9 @@ public class DataPackage implements Serializable {
 	public int id;
 	
 	public String username = "";
+	
+	@Override
+	public String toString() {
+		return "ID = " + id;
+	}
 }

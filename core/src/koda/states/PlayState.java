@@ -1,5 +1,6 @@
 package koda.states;
 
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.InetAddress;
@@ -24,7 +25,6 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 
 public class PlayState extends State {
 
-	public static ServerPackage server_package = new ServerPackage();
 	public static Socket socket;
 	public static ObjectOutputStream oos;
 	public static ObjectInputStream ois;
@@ -33,7 +33,7 @@ public class PlayState extends State {
 	
 	private boolean connected = false;
 	private int state = Server.RUNNING;
-	private int id = -1;
+	private int id = 0;
 	
 	//private ArrayList<DataPackage> othersData = new ArrayList<DataPackage>();
 	private ArrayList<Player> otherPlayers = new ArrayList<Player>();
@@ -50,13 +50,17 @@ public class PlayState extends State {
 					dp.x = player.x;
 					dp.y = player.y;
 					dp.username = player.username;
+					dp.id = id;
 					
+					
+					ServerPackage server_package = new ServerPackage();
 					server_package.dp = dp;
 					server_package.state = state;
 					server_package.id = id;
 					
-					oos.writeObject(server_package);
-					//oos.flush();
+					//oos.writeObject(server_package);
+					relay(server_package, true);
+					oos.reset();
 					
 					if (state == Server.CLIENT_INITIATED_DISCONNECT) {
 						connected = false;
@@ -79,9 +83,9 @@ public class PlayState extends State {
 			
 			while (connected) {
 				try {
-					//int receive_state = (Integer) ois.readObject();
 					
-					ClientPackage packet = (ClientPackage) ois.readObject();
+
+					ClientPackage packet = (ClientPackage) relay(null, false);
 					
 					
 					switch (packet.state) {
@@ -102,54 +106,80 @@ public class PlayState extends State {
 						break;
 					}
 					
-					if (packet.new_user != null) {
-						//othersData.add(new_user);
-						boolean add_user = true;
-						for (int i = 0; i < otherPlayers.size(); i++) {
-							if (packet.id == otherPlayers.get(i).id) {
-								add_user = false;
-								break;
-							}
-						}
-						if (add_user)
-							otherPlayers.add(new Player(packet.new_user.x, packet.new_user.y, packet.new_user.username, packet.id));
-						//System.out.println("id " + id + " says: Added a new player (" + new_user.username + "). id = " + new_user.id);
-						//System.out.println("Now there are " + otherPlayers.size() + " players");
-					}
-					
-					if (packet.former_user != null) {
-						for (int i = 0; i < otherPlayers.size(); i++) {
-							if (packet.id == otherPlayers.get(i).id) {
-								System.out.println("id " + id + " says: Removing player (" + packet.former_user.username + "). id = " + packet.id);
-								otherPlayers.remove(i);
-								i--;
-								break;
-							}
-						}
-					}
-					
-					
+					//System.out.println(id + " beginning the for loop");
 					for (int i = 0; i < packet.list_data.length; i++) {
 						DataPackage dp = packet.list_data[i];
-						if (dp == null) {
+						if (i == id) {
+							//no action on self
 							continue;
 						}
 						
-						for (int j = 0; j < otherPlayers.size(); j++) {
-							if (packet.id == otherPlayers.get(j).id) {
-								otherPlayers.get(j).x = dp.x;
-								otherPlayers.get(j).y = dp.y;
+						if (dp == null) {
+							//there is no player here
+							for (int j = 0; j < otherPlayers.size(); j++) {
+								Player p = otherPlayers.get(j);
+								if (i == p.id) {
+									otherPlayers.remove(j);
+									break;
+								}
 							}
+							continue;
+						}
+						
+						boolean found = false;
+						for (int j = 0; j < otherPlayers.size(); i++) {
+							Player p = otherPlayers.get(j);
+							if (dp.id == p.id) {
+								//found a matching player
+								p.x = dp.x;
+								p.y = dp.y;
+								found = true;
+								break;
+							}
+						}
+						
+						if (!found) {
+							//new player, need to add it
+							Player p = new Player(dp.x, dp.y, dp.username, dp.id);
+							otherPlayers.add(p);
+							//System.out.println(id + " found new player with id " + dp.id + ". Size is " + otherPlayers.size());
 						}
 					}
 					
+					
+					//System.out.println(id + " is receiving shit");
 					Thread.sleep(1);
 				} catch (Exception e) {
 					//e.printStackTrace();
+					System.out.println(id + " has an exception in receive!");
 				}
 			}
 		}
 	};
+	
+	public static Object relay(Object message, boolean sending) {
+		if (sending) {
+			try {
+				oos.writeObject(message);
+				return null;
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		} else {
+			try {
+				return ois.readObject();
+			} catch (ClassNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		return null;
+	}
 	
 	public PlayState(GSM gsm) {
 		super(gsm);
@@ -174,29 +204,25 @@ public class PlayState extends State {
 			username = (String) JOptionPane.showInputDialog(null, "Username: ", "Info", JOptionPane.INFORMATION_MESSAGE, null, null, username);
 		
 			oos = new ObjectOutputStream(socket.getOutputStream());
-			oos.writeObject(username);
+			//oos.writeObject(username);
+			relay(username, true);
 			
 			ois = new ObjectInputStream(socket.getInputStream());
-			String response = (String) ois.readObject();
+			//String response = (String) ois.readObject();
+			String response = (String) relay(null, false);
 
 			System.out.println("Got the response! " + response);
 			
 			
-			ClientPackage packet = (ClientPackage) ois.readObject();
+			
+			//ClientPackage packet = (ClientPackage) ois.readObject();
+			ClientPackage packet = (ClientPackage) relay(null, false);
 			this.id = packet.id;
 			
 			System.out.println("Got the packet! id is " + id);
 			
 			response += " (ID: " + id + ")";
 			
-			for (int i = 0; i < packet.list_data.length; i++) {
-				DataPackage dp = packet.list_data[i];
-				if (dp == null) {
-					continue;
-				}
-				Player p = new Player(dp.x, dp.y, dp.username, dp.id);
-				otherPlayers.add(p);
-			}
 			
 			
 			
@@ -268,6 +294,10 @@ public class PlayState extends State {
 		
 		if (player != null)
 			player.update(dt);
+		
+		if (connected == false) {
+			System.out.println(id + "'s connected is false!");
+		}
 	}
 
 	@Override

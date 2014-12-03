@@ -43,29 +43,17 @@ public class Server {
 	
 	public static int port = 2406;
 	public static String ip = "";
-	public static int count = 0;
-	public static int tick = 0;
 	public static int next_available_index = 0;
 	public static int num_clients_connected = 0;
 	
-	public static synchronized int updateTick() {
-		int t = tick;
-		tick++;
-		return t;
-	}
+	public static int count = 0;
 	
 	public static ServerSocket server;
-	//public static ArrayList<ClientData> client_data = new ArrayList<ClientData>();
 	public static ClientData[] client_data = new ClientData[MAX_CAPACITY + 1];
-	public static ClientPackage client_package = new ClientPackage(MAX_CAPACITY + 1);
-	/*public static ArrayList<Socket> list_sockets = new ArrayList<Socket>();
-	public static ArrayList<Integer> list_client_states = new ArrayList<Integer>();*/
-	//public static ArrayList<DataPackage> list_data = new ArrayList<DataPackage>();
+	public static DataPackage[] other_players_data = new DataPackage[MAX_CAPACITY + 1];
+
 	
-	public static DataPackage new_user = null;
-	public static DataPackage former_user = null;
-	
-	public static IDManager id_manager = new IDManager(MAX_CAPACITY);
+	public static IDManager id_manager = new IDManager(MAX_CAPACITY + 1);
 	
 	private static Runnable accept = new Runnable() {
 
@@ -104,10 +92,12 @@ public class Server {
 					
 					if (id != 0) {
 						cd.oos.writeObject("Welcome to the server!");
+
 						//cd.oos.flush();
 						//list_client_states.add(RUNNING);
 						state = Server.RUNNING;
-						new_user = dp;
+						//new_user = dp;
+						
 						num_clients_connected++;
 						DEBUG("Accepted client with ID = " + id);
 					} else {
@@ -116,17 +106,21 @@ public class Server {
 						state = Server.DISCONNECTED_BY_SERVER;	
 					}
 					
+					
+					other_players_data[id] = dp;
+					
+					System.out.println("Adding other_players_data[" + id + "] = " + dp);
+					ClientPackage client_package = new ClientPackage();
+					
 					client_package.state = state;
 					client_package.id = id;
-					client_package.new_user = new_user;
-					client_package.former_user = former_user;
+					client_package.list_data = other_players_data;
 					
 					list_clients_model.addElement(model);
 					
 					DEBUG("Sending the first package to client " + id);
-					cd.oos.writeObject(client_package);
-					client_package.list_data[id] = dp;
-					//client_data[next_available_index] = new ClientData(dp, state, model, socket);
+					//cd.oos.writeObject(client_package);
+					relay(cd, client_package, true);
 					
 					
 					//make this entry not null so send and receive can use it
@@ -163,16 +157,15 @@ public class Server {
 					try {
 						ClientData cd = client_data[i];
 						
+						ClientPackage client_package = new ClientPackage();
 						client_package.state = cd.state;
-						client_package.new_user = new_user;
-						client_package.former_user = former_user;
+						client_package.id = cd.id;
+						client_package.list_data = other_players_data;
+						client_package.huh = count++;
 						
 						
-						DEBUG("Sending package to client " + cd.id + " (" + i + ")");
-						
-						cd.oos.writeObject(client_package);
-						//cd.oos.flush();
-						//cd.oos.reset();
+						relay(cd, client_package, true);
+						cd.oos.reset();
 						
 						
 						switch (client_package.state) {
@@ -194,9 +187,6 @@ public class Server {
 						//e.printStackTrace();
 					}
 				}
-				
-				//new_user = null;
-				//former_user = null;
 				
 				
 				try {
@@ -223,13 +213,12 @@ public class Server {
 					
 					try {
 						ClientData cd = client_data[i];
-						DEBUG("Waiting for packet from client " + cd.id + " (" + i + ")...");
-						//int receive_state = (Integer) ois.readObject();
-						ServerPackage packet = (ServerPackage) cd.ois.readObject();
-						DEBUG("Received packet from client " + cd.id + " (" + i + ")!");
 						
-						client_package.list_data[i] = packet.dp;
-
+						//ServerPackage packet = (ServerPackage) cd.ois.readObject();
+						ServerPackage packet = (ServerPackage) relay(cd, null, false);
+						
+						
+						cd.data_package = other_players_data[cd.id] = packet.dp;
 						
 						switch (packet.state) {
 						case CLIENT_INITIATED_DISCONNECT:
@@ -256,22 +245,44 @@ public class Server {
 		}
 	};
 	
-	public static void getUpdatedIndex() {
-		for (int i = 0; i < MAX_CAPACITY; i++) {
-			if (client_data[i] == null) {
-				next_available_index = i;
-				return;
+	public static Object relay(ClientData cd, Object message, boolean sending) {
+		if (sending) {
+			try {
+				cd.oos.writeObject(message);
+				return null;
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		} else {
+			try {
+				return cd.ois.readObject();
+			} catch (ClassNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			}
 		}
+		
+		return null;
 	}
 	
-	public static void disconnectClient(int index) {
-		list_clients_model.removeElementAt(index - 1);
-		former_user = client_package.list_data[index];
-		client_package.list_data[index] = null;
+	public static synchronized void disconnectClient(int index) {
+		for (int i = 0; i < list_clients_model.getSize(); i++) {
+			String s = list_clients_model.get(i);
+			int id = Integer.parseInt(s.substring(s.indexOf(" ") + 1, s.indexOf(":")));
+			if (id == index) {
+				list_clients_model.remove(i);
+				break;
+			}
+		}
+		other_players_data[index] = null;
 		client_data[index] = null;
 		id_manager.releaseId(index);
 		num_clients_connected--;
+		System.out.println("Disconnecting id " + index);
 	}
 	
 	public static JFrame frame;
@@ -392,18 +403,18 @@ public class Server {
 		content = new JPanel();
 		content.setLayout(new GridLayout(1, 1, 1, 1));
 		content.add(panel3);
-		content.add(panel4);
+		//content.add(panel4);
 		content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 		
 		frame.setContentPane(content);
 		frame.pack();
-		frame.setSize(700, 400);
+		frame.setSize(350, 400);
 		frame.setLocationRelativeTo(null);
 		frame.setVisible(true);
 	}
 	
 	public static void DEBUG(String message) {
-		log_statements_model.addElement(message);
-		//System.out.println(message);
+		//log_statements_model.addElement(message);
+		System.out.println(message);
 	}
 }

@@ -5,7 +5,7 @@ public class IDManager {
 	private int[] id_table;
 	
 	public IDManager(int size) {
-		id_table = new int[size + 1];
+		id_table = new int[size];
 	}
 	
 	public int allocateId() {
