@@ -283,7 +283,8 @@ public class Server {
 		try {
 			ip = InetAddress.getLocalHost().getHostAddress() + ":" + port;
 
-			server = new ServerSocket(port, 0, InetAddress.getLocalHost());
+			//server = new ServerSocket(port, 0, InetAddress.getLocalHost());
+			server = new ServerSocket(port);
 			new Thread(accept).start();
 		} catch (IOException e) {
 			JOptionPane.showMessageDialog(null, "Error: " + e.getMessage(), "Alert", JOptionPane.ERROR_MESSAGE);
