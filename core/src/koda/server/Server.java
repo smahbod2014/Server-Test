@@ -34,19 +34,19 @@ public class Server {
 	
 	public static volatile boolean package_sent = false;
 	
-	public static final int MAX_CAPACITY = 5;
+	public static final int MAX_CAPACITY = 2;
 	
 	public static final int RUNNING = 0;
 	public static final int DISCONNECTED_BY_SERVER = 1;
 	public static final int CLIENT_INITIATED_DISCONNECT = 1;
 	public static final int SERVER_SHUTTING_DOWN = 2;
+	public static final long DELAY = 1;
 	
 	public static int port = 2406;
 	public static String ip = "";
 	public static int next_available_index = 0;
 	public static int num_clients_connected = 0;
 	
-	public static int count = 0;
 	
 	public static ServerSocket server;
 	public static ClientData[] client_data = new ClientData[MAX_CAPACITY + 1];
@@ -103,7 +103,8 @@ public class Server {
 					} else {
 						cd.oos.writeObject("The server is at capacity!");
 						//list_client_states.add(DISCONNECTED_BY_SERVER);
-						state = Server.DISCONNECTED_BY_SERVER;	
+						num_clients_connected++;
+						cd.state = Server.DISCONNECTED_BY_SERVER;	
 					}
 					
 					
@@ -119,8 +120,8 @@ public class Server {
 					list_clients_model.addElement(model);
 					
 					DEBUG("Sending the first package to client " + id);
-					//cd.oos.writeObject(client_package);
-					relay(cd, client_package, true);
+					cd.oos.writeObject(client_package);
+					//relay(cd, client_package, true);
 					
 					
 					//make this entry not null so send and receive can use it
@@ -133,7 +134,7 @@ public class Server {
 				}
 				
 				try {
-					Thread.sleep(1);
+					Thread.sleep(DELAY);
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -161,10 +162,11 @@ public class Server {
 						client_package.state = cd.state;
 						client_package.id = cd.id;
 						client_package.list_data = other_players_data;
-						client_package.huh = count++;
 						
 						
-						relay(cd, client_package, true);
+						cd.oos.writeObject(client_package);
+						//DEBUG("Sent data to id " + cd.id);
+						//relay(cd, client_package, true);
 						cd.oos.reset();
 						
 						
@@ -185,12 +187,13 @@ public class Server {
 						}
 					} catch (Exception e) {
 						//e.printStackTrace();
+						DEBUG("Write error from id " + i);
 					}
 				}
 				
 				
 				try {
-					Thread.sleep(1);
+					Thread.sleep(DELAY);
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -214,8 +217,9 @@ public class Server {
 					try {
 						ClientData cd = client_data[i];
 						
-						//ServerPackage packet = (ServerPackage) cd.ois.readObject();
-						ServerPackage packet = (ServerPackage) relay(cd, null, false);
+						ServerPackage packet = (ServerPackage) cd.ois.readObject();
+						//DEBUG("Received data from id " + cd.id);
+						//ServerPackage packet = (ServerPackage) relay(cd, null, false);
 						
 						
 						cd.data_package = other_players_data[cd.id] = packet.dp;
@@ -236,7 +240,7 @@ public class Server {
 				}
 				
 				try {
-					Thread.sleep(1);
+					Thread.sleep(DELAY);
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -245,29 +249,7 @@ public class Server {
 		}
 	};
 	
-	public static Object relay(ClientData cd, Object message, boolean sending) {
-		if (sending) {
-			try {
-				cd.oos.writeObject(message);
-				return null;
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		} else {
-			try {
-				return cd.ois.readObject();
-			} catch (ClassNotFoundException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-		
-		return null;
-	}
+	
 	
 	public static synchronized void disconnectClient(int index) {
 		for (int i = 0; i < list_clients_model.getSize(); i++) {

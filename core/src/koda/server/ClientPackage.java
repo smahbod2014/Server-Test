@@ -14,7 +14,6 @@ public class ClientPackage implements Serializable {
 	//public DataPackage new_user;
 	//public DataPackage former_user;
 	public DataPackage[] list_data;
-	public int huh;
 	
 	
 	public ClientPackage() {}

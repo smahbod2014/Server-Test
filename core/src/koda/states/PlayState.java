@@ -1,5 +1,6 @@
 package koda.states;
 
+import java.awt.Menu;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -58,19 +59,19 @@ public class PlayState extends State {
 					server_package.state = state;
 					server_package.id = id;
 					
-					//oos.writeObject(server_package);
-					relay(server_package, true);
+					oos.writeObject(server_package);
+					//relay(server_package, true);
 					oos.reset();
 					
 					if (state == Server.CLIENT_INITIATED_DISCONNECT) {
 						connected = false;
 						socket = null;
 						JOptionPane.showMessageDialog(null, "Client Disconnected", "Info", JOptionPane.INFORMATION_MESSAGE);
-						Gdx.app.exit();
+						gsm.set(new MenuState(gsm));
 					}
 					
 					
-					Thread.sleep(1);
+					Thread.sleep(Server.DELAY);
 				} catch (Exception e) {}
 			}
 		}
@@ -85,7 +86,7 @@ public class PlayState extends State {
 				try {
 					
 
-					ClientPackage packet = (ClientPackage) relay(null, false);
+					ClientPackage packet = (ClientPackage) ois.readObject();
 					
 					
 					switch (packet.state) {
@@ -148,38 +149,16 @@ public class PlayState extends State {
 					
 					
 					//System.out.println(id + " is receiving shit");
-					Thread.sleep(1);
+					Thread.sleep(Server.DELAY);
 				} catch (Exception e) {
 					//e.printStackTrace();
-					System.out.println(id + " has an exception in receive!");
+					//System.out.println(id + " has an exception in receive!");
 				}
 			}
 		}
 	};
 	
-	public static Object relay(Object message, boolean sending) {
-		if (sending) {
-			try {
-				oos.writeObject(message);
-				return null;
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		} else {
-			try {
-				return ois.readObject();
-			} catch (ClassNotFoundException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-		
-		return null;
-	}
+	
 	
 	public PlayState(GSM gsm) {
 		super(gsm);
@@ -204,19 +183,19 @@ public class PlayState extends State {
 			username = (String) JOptionPane.showInputDialog(null, "Username: ", "Info", JOptionPane.INFORMATION_MESSAGE, null, null, username);
 		
 			oos = new ObjectOutputStream(socket.getOutputStream());
-			//oos.writeObject(username);
-			relay(username, true);
+			oos.writeObject(username);
+			//relay(username, true);
 			
 			ois = new ObjectInputStream(socket.getInputStream());
-			//String response = (String) ois.readObject();
-			String response = (String) relay(null, false);
+			String response = (String) ois.readObject();
+			//String response = (String) relay(null, false);
 
 			System.out.println("Got the response! " + response);
 			
 			
 			
-			//ClientPackage packet = (ClientPackage) ois.readObject();
-			ClientPackage packet = (ClientPackage) relay(null, false);
+			ClientPackage packet = (ClientPackage) ois.readObject();
+			//ClientPackage packet = (ClientPackage) relay(null, false);
 			this.id = packet.id;
 			
 			System.out.println("Got the packet! id is " + id);
@@ -226,17 +205,22 @@ public class PlayState extends State {
 			
 			
 			
-			
-			player = new Player(MoveAround.WIDTH / 2, MoveAround.HEIGHT / 2, username, id);
-		
-			connected = true;
-			state = Server.RUNNING;
-			
-			new Thread(send).start();
-			new Thread(receive).start();
-			
-			
-			JOptionPane.showMessageDialog(null, response, "Message", JOptionPane.INFORMATION_MESSAGE);
+			this.state = packet.state;
+			if (state != Server.RUNNING) {
+				JOptionPane.showMessageDialog(null, response, "Message", JOptionPane.INFORMATION_MESSAGE);
+				gsm.set(new MenuState(gsm));
+			} else {
+				player = new Player(MoveAround.WIDTH / 2, MoveAround.HEIGHT / 2, username, id);
+				
+				connected = true;
+				state = Server.RUNNING;
+				
+				new Thread(send).start();
+				new Thread(receive).start();
+				
+				
+				JOptionPane.showMessageDialog(null, response, "Message", JOptionPane.INFORMATION_MESSAGE);
+			}
 		} catch (Exception e) {
 			JOptionPane.showMessageDialog(null, "Error: " + e.getMessage(), "Alert", JOptionPane.ERROR_MESSAGE);
 			e.printStackTrace();
